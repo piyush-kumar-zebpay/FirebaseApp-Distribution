@@ -9,5 +9,6 @@ data class Note(
     val id: Int = 0,
     val title: String,
     val content: String,
-    val timestamp: Long = System.currentTimeMillis()
+    val timestamp: Long = System.currentTimeMillis(),
+    val backgroundColor: Int = 0 // Index of predefined color palette (0-7)
 )
