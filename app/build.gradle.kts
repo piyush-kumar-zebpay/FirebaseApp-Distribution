@@ -7,6 +7,9 @@ plugins {
     alias(libs.plugins.google.gms.google.services)
 }
 
+// Import to fix deprecation warning for firebaseAppDistribution in buildTypes
+import com.google.firebase.appdistribution.gradle.firebaseAppDistribution
+
 fun getGitBranch(): String {
     return try {
         val process = Runtime.getRuntime().exec("git rev-parse --abbrev-ref HEAD")
@@ -37,41 +40,37 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
-        }
-    }
-    buildTypes {
-        release {
+            
             firebaseAppDistribution {
                 artifactType = "APK"
                 
-                // Release notes - can be overridden via releaseNotesFile in CI
-                releaseNotesFile = if (file("${rootProject.projectDir}/release-notes.txt").exists()) {
-                    "${rootProject.projectDir}/release-notes.txt"
-                } else {
-                    null
-                }
+                // Get values from command line properties, or use defaults
+                val testersFromProperty = project.findProperty("appDistributionTesters") as String?
+                val groupsFromProperty = project.findProperty("appDistributionGroups") as String?
                 
-                // Default release notes when no file exists
-                if (releaseNotesFile == null) {
+                // Default testers - ALWAYS set to ensure distribution happens
+                testers = testersFromProperty ?: "piyush.k@zebpay.com"
+                
+                // Default group - ALWAYS set to ensure distribution happens
+                groups = groupsFromProperty ?: "qa"
+                
+                // Release notes - use file if exists (CI), otherwise default text
+                if (file("${rootProject.projectDir}/release-notes.txt").exists()) {
+                    releaseNotesFile = "${rootProject.projectDir}/release-notes.txt"
+                } else {
                     releaseNotes = """
                         📱 Version: ${defaultConfig.versionName}
                         🔢 Version Code: ${defaultConfig.versionCode}
                         🌿 Branch: ${getGitBranch()}
-                        👥 QA Team: piyush.k@zebpay.com
-                        📜 Script: Local build via Gradle
+                        👥 Testers: ${testers}
+                        👥 Groups: ${groups}
+                        📜 Script: release build via Gradle
                     """.trimIndent()
-                }
-
-                val testersFromProperty = project.findProperty("appDistributionTesters") as String?
-                testers = testersFromProperty
-
-                val groupsFromProperty = project.findProperty("appDistributionGroups") as String?
-                if (groupsFromProperty != null) {
-                    groups = groupsFromProperty
                 }
             }
         }
     }
+
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_11
         targetCompatibility = JavaVersion.VERSION_11
