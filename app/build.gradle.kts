@@ -1,3 +1,5 @@
+import com.google.firebase.appdistribution.gradle.firebaseAppDistribution
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
@@ -7,15 +9,14 @@ plugins {
     alias(libs.plugins.google.gms.google.services)
 }
 
-// Import to fix deprecation warning for firebaseAppDistribution in buildTypes
-import com.google.firebase.appdistribution.gradle.firebaseAppDistribution
+// Get config values from command line or use defaults
+val appDistTesters: String = (project.findProperty("appDistributionTesters") as? String)
+    ?: "piyush.k@zebpay.com"
 
-fun getGitBranch(): String {
-    return try {
-        val process = Runtime.getRuntime().exec("git rev-parse --abbrev-ref HEAD")
-        process.inputStream.bufferedReader().readText().trim()
-    } catch (e: Exception) { "unknown" }
-}
+val appDistGroups: String = (project.findProperty("appDistributionGroups") as? String)
+    ?: "QA"
+
+val appDistReleaseNotes: String? = project.findProperty("appDistributionReleaseNotes") as? String
 
 android {
     namespace = "com.example.firebaseappdistribution"
@@ -43,29 +44,17 @@ android {
             
             firebaseAppDistribution {
                 artifactType = "APK"
+                testers = appDistTesters
+                groups = appDistGroups
                 
-                // Get values from command line properties, or use defaults
-                val testersFromProperty = project.findProperty("appDistributionTesters") as String?
-                val groupsFromProperty = project.findProperty("appDistributionGroups") as String?
-                
-                // Default testers - ALWAYS set to ensure distribution happens
-                testers = testersFromProperty ?: "piyush.k@zebpay.com"
-                
-                // Default group - ALWAYS set to ensure distribution happens
-                groups = groupsFromProperty ?: "qa"
-                
-                // Release notes - use file if exists (CI), otherwise default text
-                if (file("${rootProject.projectDir}/release-notes.txt").exists()) {
-                    releaseNotesFile = "${rootProject.projectDir}/release-notes.txt"
+                // Release notes: command line > file > auto-generated
+                val notesFile = rootProject.file("release-notes.txt")
+                if (appDistReleaseNotes != null) {
+                    releaseNotes = appDistReleaseNotes
+                } else if (notesFile.exists()) {
+                    releaseNotesFile = notesFile.absolutePath
                 } else {
-                    releaseNotes = """
-                        📱 Version: ${defaultConfig.versionName}
-                        🔢 Version Code: ${defaultConfig.versionCode}
-                        🌿 Branch: ${getGitBranch()}
-                        👥 Testers: ${testers}
-                        👥 Groups: ${groups}
-                        📜 Script: release build via Gradle
-                    """.trimIndent()
+                    releaseNotes = "Version: ${android.defaultConfig.versionName} (${android.defaultConfig.versionCode})"
                 }
             }
         }
@@ -111,5 +100,4 @@ dependencies {
     androidTestImplementation(libs.androidx.compose.ui.test.junit4)
     debugImplementation(libs.androidx.compose.ui.tooling)
     debugImplementation(libs.androidx.compose.ui.test.manifest)
-
 }

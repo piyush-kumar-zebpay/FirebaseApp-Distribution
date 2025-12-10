@@ -122,36 +122,39 @@ jobs:
       
       - name: Upload APK to Firebase App Distribution
         run: |
-          # Build the command with optional parameters
+          # Build the command - defaults come from firebase-distribution.properties
           CMD="./gradlew appDistributionUploadRelease"
           
-          # Default values for automatic triggers (push/PR)
-          DEFAULT_TESTERS="piyush.k@zebpay.com"
-          DEFAULT_GROUPS="qa"
-          
-          # Use input values if provided (manual trigger), otherwise use defaults
+          # Only pass command line overrides if provided via workflow inputs
           TESTERS="${{ github.event.inputs.testers }}"
           GROUPS="${{ github.event.inputs.groups }}"
+          RELEASE_NOTES="${{ github.event.inputs.release_notes }}"
           
-          # If no custom testers specified, use default
-          if [ -z "$TESTERS" ]; then
-            TESTERS="$DEFAULT_TESTERS"
+          # Add testers override if provided
+          if [ -n "$TESTERS" ]; then
+            CMD="$CMD -PappDistributionTesters=$TESTERS"
+            echo "📧 Testers override: $TESTERS"
+          else
+            echo "📧 Using testers from firebase-distribution.properties"
           fi
           
-          # If no custom groups specified, use default
-          if [ -z "$GROUPS" ]; then
-            GROUPS="$DEFAULT_GROUPS"
+          # Add groups override if provided
+          if [ -n "$GROUPS" ]; then
+            CMD="$CMD -PappDistributionGroups=$GROUPS"
+            echo "👥 Groups override: $GROUPS"
+          else
+            echo "👥 Using groups from firebase-distribution.properties"
           fi
           
-          # Add testers to command
-          CMD="$CMD -PappDistributionTesters=$TESTERS"
-          
-          # Add groups to command
-          CMD="$CMD -PappDistributionGroups=$GROUPS"
+          # Add release notes override if provided
+          if [ -n "$RELEASE_NOTES" ]; then
+            CMD="$CMD -PappDistributionReleaseNotes=\"$RELEASE_NOTES\""
+            echo "📝 Custom release notes provided"
+          else
+            echo "📝 Using auto-generated release notes"
+          fi
           
           echo "Running: $CMD"
-          echo "Testers: $TESTERS"
-          echo "Groups: $GROUPS"
           $CMD
         env:
           GOOGLE_APPLICATION_CREDENTIALS: firebase-service-account.json
