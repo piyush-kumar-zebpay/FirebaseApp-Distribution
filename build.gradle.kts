@@ -4,4 +4,5 @@ plugins {
     alias(libs.plugins.kotlin.android) apply false
     alias(libs.plugins.kotlin.compose) apply false
     id("com.google.firebase.appdistribution") version "5.2.0" apply false
+    alias(libs.plugins.google.gms.google.services) apply false
 }
