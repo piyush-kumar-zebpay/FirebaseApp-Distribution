@@ -125,22 +125,37 @@ jobs:
           # Build the command with optional parameters
           CMD="./gradlew appDistributionUploadRelease"
           
-          # Check for custom testers
+          # Default values for automatic triggers (push/PR)
+          DEFAULT_TESTERS="piyush.k@zebpay.com"
+          DEFAULT_GROUPS="qa"
+          
+          # Use input values if provided (manual trigger), otherwise use defaults
           TESTERS="${{ github.event.inputs.testers }}"
-          if [ -n "$TESTERS" ]; then
-            CMD="$CMD -PappDistributionTesters=$TESTERS"
+          GROUPS="${{ github.event.inputs.groups }}"
+          
+          # If no custom testers specified, use default
+          if [ -z "$TESTERS" ]; then
+            TESTERS="$DEFAULT_TESTERS"
           fi
           
-          # Check for tester groups
-          GROUPS="${{ github.event.inputs.groups }}"
-          if [ -n "$GROUPS" ]; then
-            CMD="$CMD -PappDistributionGroups=$GROUPS"
+          # If no custom groups specified, use default
+          if [ -z "$GROUPS" ]; then
+            GROUPS="$DEFAULT_GROUPS"
           fi
+          
+          # Add testers to command
+          CMD="$CMD -PappDistributionTesters=$TESTERS"
+          
+          # Add groups to command
+          CMD="$CMD -PappDistributionGroups=$GROUPS"
           
           echo "Running: $CMD"
+          echo "Testers: $TESTERS"
+          echo "Groups: $GROUPS"
           $CMD
         env:
           GOOGLE_APPLICATION_CREDENTIALS: firebase-service-account.json
+
       
       - name: Upload APK as artifact
         uses: actions/upload-artifact@v4

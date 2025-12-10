@@ -61,12 +61,10 @@ android {
                         📜 Script: Local build via Gradle
                     """.trimIndent()
                 }
-                
-                // Testers - can be overridden via command line: -PappDistributionTesters="email1,email2"
+
                 val testersFromProperty = project.findProperty("appDistributionTesters") as String?
-                testers = testersFromProperty ?: "piyush.k@zebpay.com"
-                
-                // Groups - can be set via command line: -PappDistributionGroups="qa-team,beta"
+                testers = testersFromProperty
+
                 val groupsFromProperty = project.findProperty("appDistributionGroups") as String?
                 if (groupsFromProperty != null) {
                     groups = groupsFromProperty
