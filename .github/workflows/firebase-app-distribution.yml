@@ -1,55 +1,48 @@
 name: Build & Upload to Firebase App Distribution
 
 on:
-  # Automatic trigger on push to main and develop branches
   push:
     branches:
       - main
       - develop
+      - improvement
       - release/**
-  
-  # Trigger on pull requests to any branch
-  pull_request:
-    branches:
-      - '**'
-  
-  # Manual trigger from any branch
   workflow_dispatch:
     inputs:
-      release_notes:
-        description: 'Custom release notes (optional)'
-        required: false
-        default: ''
       testers:
-        description: 'Tester emails (comma-separated, optional - uses default if empty)'
+        description: 'Tester emails (comma-separated, leave empty to use properties file)'
         required: false
-        default: ''
+        type: string
       groups:
-        description: 'Tester groups (comma-separated, optional)'
+        description: 'Tester groups (comma-separated, leave empty to use properties file)'
         required: false
-        default: ''
+        type: string
+      release_notes:
+        description: 'Custom release notes (leave empty for auto-generated)'
+        required: false
+        type: string
 
 jobs:
   build-and-distribute:
     name: Build & Distribute APK
     runs-on: ubuntu-latest
-    
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0  # Full history for branch info
-      
+          fetch-depth: 0
+
       - name: Set up JDK 17
         uses: actions/setup-java@v4
         with:
           java-version: '17'
           distribution: 'temurin'
           cache: gradle
-      
+
       - name: Grant execute permission for gradlew
         run: chmod +x gradlew
-      
+
       - name: Cache Gradle packages
         uses: actions/cache@v4
         with:
@@ -59,18 +52,14 @@ jobs:
           key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
           restore-keys: |
             ${{ runner.os }}-gradle-
-      
+
       - name: Get branch name
         id: branch
         run: |
-          if [ "${{ github.event_name }}" == "pull_request" ]; then
-            BRANCH_NAME="${{ github.head_ref }}"
-          else
-            BRANCH_NAME="${GITHUB_REF#refs/heads/}"
-          fi
+          BRANCH_NAME="${GITHUB_REF#refs/heads/}"
           echo "name=$BRANCH_NAME" >> $GITHUB_OUTPUT
           echo "Building from branch: $BRANCH_NAME"
-      
+
       - name: Get version info
         id: version
         run: |
@@ -79,11 +68,11 @@ jobs:
           echo "name=$VERSION_NAME" >> $GITHUB_OUTPUT
           echo "code=$VERSION_CODE" >> $GITHUB_OUTPUT
           echo "Version: $VERSION_NAME ($VERSION_CODE)"
-      
+
       - name: Create Firebase Service Account file
         run: |
           echo '${{ secrets.FIREBASE_SERVICE_ACCOUNT }}' > firebase-service-account.json
-      
+
       - name: Prepare release notes
         id: notes
         run: |
@@ -98,7 +87,7 @@ jobs:
           
           if [ -n "$CUSTOM_NOTES" ]; then
             NOTES="$CUSTOM_NOTES
-          
+
           ---
           📱 Version: $VERSION ($VERSION_CODE)
           🌿 Branch: $BRANCH
@@ -113,24 +102,29 @@ jobs:
           📅 Built: $TIMESTAMP"
           fi
           
-          # Write to file for multi-line support
           echo "$NOTES" > release-notes.txt
           cat release-notes.txt
-      
+
+      - name: Verify Firebase configuration
+        run: |
+          echo "📋 Checking firebase-distribution.properties..."
+          if [ -f "firebase-distribution.properties" ]; then
+            cat firebase-distribution.properties
+          else
+            echo "⚠️ firebase-distribution.properties not found!"
+          fi
+
       - name: Build Release APK
         run: ./gradlew assembleRelease
-      
+
       - name: Upload APK to Firebase App Distribution
         run: |
-          # Build the command - defaults come from firebase-distribution.properties
           CMD="./gradlew appDistributionUploadRelease"
           
-          # Only pass command line overrides if provided via workflow inputs
           TESTERS="${{ github.event.inputs.testers }}"
           GROUPS="${{ github.event.inputs.groups }}"
           RELEASE_NOTES="${{ github.event.inputs.release_notes }}"
           
-          # Add testers override if provided
           if [ -n "$TESTERS" ]; then
             CMD="$CMD -PappDistributionTesters=$TESTERS"
             echo "📧 Testers override: $TESTERS"
@@ -138,7 +132,6 @@ jobs:
             echo "📧 Using testers from firebase-distribution.properties"
           fi
           
-          # Add groups override if provided
           if [ -n "$GROUPS" ]; then
             CMD="$CMD -PappDistributionGroups=$GROUPS"
             echo "👥 Groups override: $GROUPS"
@@ -146,31 +139,30 @@ jobs:
             echo "👥 Using groups from firebase-distribution.properties"
           fi
           
-          # Add release notes override if provided
           if [ -n "$RELEASE_NOTES" ]; then
-            CMD="$CMD -PappDistributionReleaseNotes=\"$RELEASE_NOTES\""
-            echo "📝 Custom release notes provided"
+            CMD="$CMD -PappDistributionReleaseNotesFile=release-notes.txt"
+            echo "📝 Using custom release notes"
           else
+            CMD="$CMD -PappDistributionReleaseNotesFile=release-notes.txt"
             echo "📝 Using auto-generated release notes"
           fi
           
           echo "Running: $CMD"
-          $CMD
+          eval $CMD
         env:
           GOOGLE_APPLICATION_CREDENTIALS: firebase-service-account.json
 
-      
       - name: Upload APK as artifact
         uses: actions/upload-artifact@v4
         with:
           name: release-apk-${{ steps.branch.outputs.name }}-${{ github.run_number }}
           path: app/build/outputs/apk/release/*.apk
           retention-days: 30
-      
+
       - name: Cleanup
         if: always()
         run: rm -f firebase-service-account.json
-      
+
       - name: Build Summary
         run: |
           echo "## 🎉 Build & Distribution Complete!" >> $GITHUB_STEP_SUMMARY
