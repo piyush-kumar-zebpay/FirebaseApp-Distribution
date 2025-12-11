@@ -23,7 +23,7 @@ fun NotesNavigation(viewModel: NotesViewModel) {
                 viewModel = viewModel,
                 onNavigateToAddEdit = { noteId ->
                     if (noteId == null) {
-                        navController.navigate("add_edit_note")
+                        navController.navigate("add_edit_note/-1")
                     } else {
                         navController.navigate("add_edit_note/$noteId")
                     }
@@ -31,18 +31,25 @@ fun NotesNavigation(viewModel: NotesViewModel) {
             )
         }
         
+        // Route for adding new note (no noteId)
+        composable("add_edit_note/-1") {
+            AddEditNoteScreen(
+                viewModel = viewModel,
+                noteId = null,
+                onNavigateBack = { navController.popBackStack() }
+            )
+        }
+        
+        // Route for editing existing note (with noteId)
         composable(
-            route = "add_edit_note?noteId={noteId}",
+            route = "add_edit_note/{noteId}",
             arguments = listOf(
                 navArgument("noteId") {
-                    type = NavType.StringType
-                    nullable = true
-                    defaultValue = null
+                    type = NavType.IntType
                 }
             )
         ) { backStackEntry ->
-            val noteIdString = backStackEntry.arguments?.getString("noteId")
-            val noteId = noteIdString?.toIntOrNull()
+            val noteId = backStackEntry.arguments?.getInt("noteId")
             
             AddEditNoteScreen(
                 viewModel = viewModel,
