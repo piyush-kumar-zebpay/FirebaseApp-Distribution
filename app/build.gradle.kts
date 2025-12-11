@@ -1,3 +1,5 @@
+import com.google.firebase.appdistribution.gradle.firebaseAppDistribution
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
@@ -7,12 +9,14 @@ plugins {
     alias(libs.plugins.google.gms.google.services)
 }
 
-fun getGitBranch(): String {
-    return try {
-        val process = Runtime.getRuntime().exec("git rev-parse --abbrev-ref HEAD")
-        process.inputStream.bufferedReader().readText().trim()
-    } catch (e: Exception) { "unknown" }
-}
+// Get config values from command line or use defaults
+val appDistTesters: String = (project.findProperty("appDistributionTesters") as? String)
+    ?: "piyush.k@zebpay.com"
+
+val appDistGroups: String = (project.findProperty("appDistributionGroups") as? String)
+    ?: "QA"
+
+val appDistReleaseNotes: String? = project.findProperty("appDistributionReleaseNotes") as? String
 
 android {
     namespace = "com.example.firebaseappdistribution"
@@ -24,8 +28,8 @@ android {
         applicationId = "com.example.firebaseappdistribution"
         minSdk = 24
         targetSdk = 36
-        versionCode = 2
-        versionName = "2.5.2"
+        versionCode = 3
+        versionName = "3"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -37,43 +41,25 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
-        }
-    }
-    buildTypes {
-        release {
+            
             firebaseAppDistribution {
                 artifactType = "APK"
+                testers = appDistTesters
+                groups = appDistGroups
                 
-                // Release notes - can be overridden via releaseNotesFile in CI
-                releaseNotesFile = if (file("${rootProject.projectDir}/release-notes.txt").exists()) {
-                    "${rootProject.projectDir}/release-notes.txt"
+                // Release notes: command line > file > auto-generated
+                val notesFile = rootProject.file("release-notes.txt")
+                if (appDistReleaseNotes != null) {
+                    releaseNotes = appDistReleaseNotes
+                } else if (notesFile.exists()) {
+                    releaseNotesFile = notesFile.absolutePath
                 } else {
-                    null
-                }
-                
-                // Default release notes when no file exists
-                if (releaseNotesFile == null) {
-                    releaseNotes = """
-                        📱 Version: ${defaultConfig.versionName}
-                        🔢 Version Code: ${defaultConfig.versionCode}
-                        🌿 Branch: ${getGitBranch()}
-                        👥 QA Team: piyush.k@zebpay.com
-                        📜 Script: Local build via Gradle
-                    """.trimIndent()
-                }
-                
-                // Testers - can be overridden via command line: -PappDistributionTesters="email1,email2"
-                val testersFromProperty = project.findProperty("appDistributionTesters") as String?
-                testers = testersFromProperty ?: "piyush.k@zebpay.com"
-                
-                // Groups - can be set via command line: -PappDistributionGroups="qa-team,beta"
-                val groupsFromProperty = project.findProperty("appDistributionGroups") as String?
-                if (groupsFromProperty != null) {
-                    groups = groupsFromProperty
+                    releaseNotes = "Version: ${android.defaultConfig.versionName} (${android.defaultConfig.versionCode})"
                 }
             }
         }
     }
+
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_11
         targetCompatibility = JavaVersion.VERSION_11
@@ -114,5 +100,4 @@ dependencies {
     androidTestImplementation(libs.androidx.compose.ui.test.junit4)
     debugImplementation(libs.androidx.compose.ui.tooling)
     debugImplementation(libs.androidx.compose.ui.test.manifest)
-
 }
