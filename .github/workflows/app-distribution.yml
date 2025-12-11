@@ -3,24 +3,7 @@ name: Build & Upload to Firebase App Distribution
 on:
   push:
     branches:
-      - main
-      - master
-      - enhancement
-      - release/**
-  workflow_dispatch:
-    inputs:
-      testers:
-        description: 'Tester emails (comma-separated, leave empty to use properties file)'
-        required: false
-        type: string
-      groups:
-        description: 'Tester groups (comma-separated, leave empty to use properties file)'
-        required: false
-        type: string
-      release_notes:
-        description: 'Custom release notes (leave empty for auto-generated)'
-        required: false
-        type: string
+      - '**'
 
 jobs:
   build-and-distribute:
@@ -119,36 +102,10 @@ jobs:
 
       - name: Upload APK to Firebase App Distribution
         run: |
-          CMD="./gradlew appDistributionUploadRelease"
-          
-          TESTERS="${{ github.event.inputs.testers }}"
-          GROUPS="${{ github.event.inputs.groups }}"
-          RELEASE_NOTES="${{ github.event.inputs.release_notes }}"
-          
-          if [ -n "$TESTERS" ]; then
-            CMD="$CMD -PappDistributionTesters=$TESTERS"
-            echo "📧 Testers override: $TESTERS"
-          else
-            echo "📧 Using testers from firebase-distribution.properties"
-          fi
-          
-          if [ -n "$GROUPS" ]; then
-            CMD="$CMD -PappDistributionGroups=$GROUPS"
-            echo "👥 Groups override: $GROUPS"
-          else
-            echo "👥 Using groups from firebase-distribution.properties"
-          fi
-          
-          if [ -n "$RELEASE_NOTES" ]; then
-            CMD="$CMD -PappDistributionReleaseNotesFile=release-notes.txt"
-            echo "📝 Using custom release notes"
-          else
-            CMD="$CMD -PappDistributionReleaseNotesFile=release-notes.txt"
-            echo "📝 Using auto-generated release notes"
-          fi
-          
-          echo "Running: $CMD"
-          eval $CMD
+          echo "📧 Using testers from build.gradle.kts defaults"
+          echo "� Using groups from build.gradle.kts defaults"
+          echo "� Using release notes from release-notes.txt"
+          ./gradlew appDistributionUploadRelease -PappDistributionReleaseNotesFile=release-notes.txt
         env:
           GOOGLE_APPLICATION_CREDENTIALS: firebase-service-account.json
 
