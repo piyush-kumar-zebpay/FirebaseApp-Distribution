@@ -5,8 +5,7 @@ on:
     branches:
       - main
       - master
-      - develop
-      - improvement
+      -
       - release/**
   workflow_dispatch:
     inputs:

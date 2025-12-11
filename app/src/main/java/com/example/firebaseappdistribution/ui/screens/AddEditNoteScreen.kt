@@ -119,7 +119,7 @@ fun AddEditNoteScreen(
                 modifier = Modifier
                     .fillMaxSize()
                     .background(backgroundColor.copy(alpha = 0.3f))
-                    .padding(16.dp)
+                    .padding(26.dp)
             ) {
                 OutlinedTextField(
                     value = title,
