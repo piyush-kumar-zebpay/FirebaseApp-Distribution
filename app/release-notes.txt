@@ -1,0 +1,6 @@
+releaseNotes = """
+                    📱 Version: ${defaultConfig.versionName}
+                    🔢 Version Code: ${defaultConfig.versionCode}
+                    🌿 Branch: ${getGitBranch()}
+                    👥 QA Team: qa-team@company.com
+                    📜 Script: release build via Gradle

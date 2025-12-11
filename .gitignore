@@ -13,3 +13,9 @@
 .externalNativeBuild
 .cxx
 local.properties
+
+# Firebase App Distribution - CI/CD generated files
+release-notes.txt
+firebase-service-account.json
+*.json.key
+key.json

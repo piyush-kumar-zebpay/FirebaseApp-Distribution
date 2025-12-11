@@ -1,0 +1,164 @@
+name: Build & Upload to Firebase App Distribution
+
+on:
+  # Automatic trigger on push to main and develop branches
+  push:
+    branches:
+      - main
+      - develop
+      - release/**
+  
+  # Manual trigger from any branch
+  workflow_dispatch:
+    inputs:
+      release_notes:
+        description: 'Custom release notes (optional)'
+        required: false
+        default: ''
+      testers:
+        description: 'Tester emails (comma-separated, optional - uses default if empty)'
+        required: false
+        default: ''
+      groups:
+        description: 'Tester groups (comma-separated, optional)'
+        required: false
+        default: ''
+
+jobs:
+  build-and-distribute:
+    name: Build & Distribute APK
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Full history for branch info
+      
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+          cache: gradle
+      
+      - name: Grant execute permission for gradlew
+        run: chmod +x gradlew
+      
+      - name: Cache Gradle packages
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
+          restore-keys: |
+            ${{ runner.os }}-gradle-
+      
+      - name: Get branch name
+        id: branch
+        run: |
+          if [ "${{ github.event_name }}" == "pull_request" ]; then
+            BRANCH_NAME="${{ github.head_ref }}"
+          else
+            BRANCH_NAME="${GITHUB_REF#refs/heads/}"
+          fi
+          echo "name=$BRANCH_NAME" >> $GITHUB_OUTPUT
+          echo "Building from branch: $BRANCH_NAME"
+      
+      - name: Get version info
+        id: version
+        run: |
+          VERSION_NAME=$(grep 'versionName' app/build.gradle.kts | head -1 | sed 's/.*"\(.*\)".*/\1/')
+          VERSION_CODE=$(grep 'versionCode' app/build.gradle.kts | head -1 | sed 's/[^0-9]*//g')
+          echo "name=$VERSION_NAME" >> $GITHUB_OUTPUT
+          echo "code=$VERSION_CODE" >> $GITHUB_OUTPUT
+          echo "Version: $VERSION_NAME ($VERSION_CODE)"
+      
+      - name: Create Firebase Service Account file
+        run: |
+          echo '${{ secrets.FIREBASE_SERVICE_ACCOUNT }}' > firebase-service-account.json
+      
+      - name: Prepare release notes
+        id: notes
+        run: |
+          CUSTOM_NOTES="${{ github.event.inputs.release_notes }}"
+          BRANCH="${{ steps.branch.outputs.name }}"
+          VERSION="${{ steps.version.outputs.name }}"
+          VERSION_CODE="${{ steps.version.outputs.code }}"
+          COMMIT_SHA="${{ github.sha }}"
+          SHORT_SHA="${COMMIT_SHA:0:7}"
+          ACTOR="${{ github.actor }}"
+          TIMESTAMP=$(date -u +"%Y-%m-%d %H:%M UTC")
+          
+          if [ -n "$CUSTOM_NOTES" ]; then
+            NOTES="$CUSTOM_NOTES
+          
+          ---
+          📱 Version: $VERSION ($VERSION_CODE)
+          🌿 Branch: $BRANCH
+          🔗 Commit: $SHORT_SHA
+          👤 Triggered by: $ACTOR
+          📅 Built: $TIMESTAMP"
+          else
+            NOTES="📱 Version: $VERSION ($VERSION_CODE)
+          🌿 Branch: $BRANCH
+          🔗 Commit: $SHORT_SHA
+          👤 Triggered by: $ACTOR
+          📅 Built: $TIMESTAMP"
+          fi
+          
+          # Write to file for multi-line support
+          echo "$NOTES" > release-notes.txt
+          cat release-notes.txt
+      
+      - name: Build Release APK
+        run: ./gradlew assembleRelease
+      
+      - name: Upload APK to Firebase App Distribution
+        run: |
+          # Build the command with optional parameters
+          CMD="./gradlew appDistributionUploadRelease"
+          
+          # Check for custom testers
+          TESTERS="${{ github.event.inputs.testers }}"
+          if [ -n "$TESTERS" ]; then
+            CMD="$CMD -PappDistributionTesters=$TESTERS"
+          fi
+          
+          # Check for tester groups
+          GROUPS="${{ github.event.inputs.groups }}"
+          if [ -n "$GROUPS" ]; then
+            CMD="$CMD -PappDistributionGroups=$GROUPS"
+          fi
+          
+          echo "Running: $CMD"
+          $CMD
+        env:
+          GOOGLE_APPLICATION_CREDENTIALS: firebase-service-account.json
+      
+      - name: Upload APK as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-apk-${{ steps.branch.outputs.name }}-${{ github.run_number }}
+          path: app/build/outputs/apk/release/*.apk
+          retention-days: 30
+      
+      - name: Cleanup
+        if: always()
+        run: rm -f firebase-service-account.json
+      
+      - name: Build Summary
+        run: |
+          echo "## 🎉 Build & Distribution Complete!" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Property | Value |" >> $GITHUB_STEP_SUMMARY
+          echo "|----------|-------|" >> $GITHUB_STEP_SUMMARY
+          echo "| **Version** | ${{ steps.version.outputs.name }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Version Code** | ${{ steps.version.outputs.code }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Branch** | ${{ steps.branch.outputs.name }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Commit** | ${{ github.sha }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Triggered by** | ${{ github.actor }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Run Number** | ${{ github.run_number }} |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "✅ APK has been uploaded to Firebase App Distribution" >> $GITHUB_STEP_SUMMARY

@@ -12,6 +12,10 @@
                   <option name="mobileSdkAppId" value="" />
                   <option name="projectId" value="" />
                   <option name="projectNumber" value="" />
+                  <option name="appId" value="com.example.firebaseappdistribution" />
+                  <option name="mobileSdkAppId" value="1:818796996750:android:9b405aa14f5e348c6fc1df" />
+                  <option name="projectId" value="app-distribution-57657" />
+                  <option name="projectNumber" value="818796996750" />
                 </ConnectionSetting>
               </option>
               <option name="signal" value="SIGNAL_UNSPECIFIED" />
